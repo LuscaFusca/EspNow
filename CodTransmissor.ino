@@ -1,101 +1,159 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
-// REPLACE WITH YOUR RECEIVER MAC Address
-uint8_t broadcastAddress[] = {0x08, 0xd1, 0xf9, 0x27, 0xc9, 0xd4};
+// Substitua pelo endereço MAC do receptor
+uint8_t broadcastAddress[] = {0x08, 0xd1, 0xf9, 0x27, 0x9e, 0x84};
 
-#define pinSensorCima 22 // Pino da bomba de cima
-#define pinSensorBaixo 23 // Pino da bomba de baixo
+#define sensorDeCima 22 // Pino do sensor de cima
+#define sensorDeBaixo 23 // Pino do sensor de baixo
+#define ledConexao 12
+#define ledEnchendo 13
+#define ledEsvaziando 14
 
+bool statusCaixa = false;
+bool sDeCima;
+bool sDeBaixo;
+bool isPeerConnected = false;
 
-bool sensorCima = false;
-bool sensorBaixo = false;
-
-// Structure example to send data
-// Must match the receiver structure
+// Estrutura de dados para enviar
 typedef struct struct_message {
   bool a;
-  bool b;
 } struct_message;
 
-// Create a struct_message called myData
+// Cria um struct_message chamado myData
 struct_message myData;
 
 esp_now_peer_info_t peerInfo;
 
-// callback when data is sent
+// Callback quando os dados são enviados
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  Serial.print("\r\nLast Packet Send Status:\t");
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
-}
- 
-void setup() {
-  // Init Serial Monitor
-  Serial.begin(115200);
-  pinMode(pinSensorCima, INPUT_PULLUP);
-  pinMode(pinSensorBaixo, INPUT_PULLUP);
-
-  // Set device as a Wi-Fi Station
-  WiFi.mode(WIFI_STA);
-
-  // Init ESP-NOW
-  if (esp_now_init() != ESP_OK) {
-    Serial.println("Error initializing ESP-NOW");
-    return;
-  }
-
-  // Once ESPNow is successfully Init, we will register for Send CB to
-  // get the status of Trasnmitted packet
-  esp_now_register_send_cb(OnDataSent);
+  Serial.print("\r\nStatus do último pacote enviado:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Sucesso na entrega" : "Falha na entrega");
   
-  // Register peer
+  if (status == ESP_NOW_SEND_SUCCESS) {
+    piscaLedConexao(true);
+  } else {
+    piscaLedConexao(false);
+    isPeerConnected = false; // Marca como desconectado
+  }
+}
+
+// Função para tentar adicionar o peer
+void addPeer() {
+  // Remove o peer primeiro, se já estiver adicionado
+  esp_now_del_peer(broadcastAddress);
+  
+  // Configura as informações do peer
   memcpy(peerInfo.peer_addr, broadcastAddress, 6);
   peerInfo.channel = 0;  
   peerInfo.encrypt = false;
   
-  // Add peer        
-  if (esp_now_add_peer(&peerInfo) != ESP_OK){
-    Serial.println("Failed to add peer");
-    return;
+  if (esp_now_add_peer(&peerInfo) == ESP_OK) {
+    Serial.println("Peer adicionado com sucesso");
+    isPeerConnected = true;
+    piscaLedConexao(true);
+  } else {
+    Serial.println("Falha ao adicionar peer, tentando novamente...");
+    isPeerConnected = false;
+    piscaLedConexao(false);
   }
 }
  
-void loop() {
-  /*
-  bool bombaCima = digitalRead(pinBombaCima);
-  bool bombaBaixo = digitalRead(pinBombaCima);
-  */
-  char valor = Serial.read();
-  if(valor == 'q'){
-    sensorCima = true;
-  }else if(valor == 'w'){
-    sensorCima = false;
-  }else if(valor == 'a'){
-    sensorBaixo = true;
-  }else if(valor == 's'){
-    sensorBaixo = false;
+void setup() {
+  // Inicializa o monitor serial
+  Serial.begin(115200);
+  pinMode(sensorDeCima, INPUT_PULLUP);
+  pinMode(sensorDeBaixo, INPUT_PULLUP);
+  pinMode(ledConexao, OUTPUT);
+  pinMode(ledEnchendo, OUTPUT);
+  pinMode(ledEsvaziando, OUTPUT);
+
+  // Configura o dispositivo como uma estação Wi-Fi
+  WiFi.mode(WIFI_STA);
+
+  // Inicializa ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Erro ao inicializar ESP-NOW");
+    return;
   }
-   
-  
 
-  Serial.print("Valor da bomba de cima ");
-  Serial.println(sensorCima);
-  Serial.print("Valor da bomba de baixo ");
-  Serial.println(sensorBaixo);
-  
+  // Registra o callback para o status de envio
+  esp_now_register_send_cb(OnDataSent);
 
-  // Set values to send
-  myData.a = sensorCima;
-  myData.b = sensorBaixo;
+  addPeer(); // Adiciona o peer
+}
+ 
+void loop() {
+  sDeCima = digitalRead(sensorDeCima);
+  sDeBaixo = digitalRead(sensorDeBaixo);
 
-  // Send message via ESP-NOW
+  if(!sDeCima && !sDeBaixo && !statusCaixa){
+    Serial.println("1 - Esvaziando");
+    digitalWrite(ledEsvaziando, HIGH);
+    digitalWrite(ledEnchendo, LOW);
+    myData.a = 0;
+  } else if(sDeCima && !sDeBaixo && !statusCaixa){
+    Serial.println("2 - Esvaziando");
+    digitalWrite(ledEsvaziando, HIGH);
+    digitalWrite(ledEnchendo, LOW);
+    myData.a = 0;
+  } else if(sDeCima && sDeBaixo && !statusCaixa){
+    Serial.println("3 - Vazio");
+    digitalWrite(ledEsvaziando, HIGH);
+    digitalWrite(ledEnchendo, LOW);
+    myData.a = 1;
+    statusCaixa = true;
+  } else if(sDeCima && sDeBaixo && statusCaixa){
+    Serial.println("4 - Enchendo");
+    digitalWrite(ledEnchendo, HIGH);
+    digitalWrite(ledEsvaziando, LOW);
+    myData.a = 1;
+  } else if(sDeCima && !sDeBaixo && statusCaixa){
+    Serial.println("5 - Enchendo");
+    digitalWrite(ledEnchendo, HIGH);
+    digitalWrite(ledEsvaziando, LOW);
+    myData.a = 1;
+  } else if(!sDeCima && !sDeBaixo && statusCaixa){
+    Serial.println("6 - Cheio");
+    digitalWrite(ledEnchendo, HIGH);
+    digitalWrite(ledEsvaziando, LOW);
+    myData.a = 0;
+    statusCaixa = false;
+  } else {
+    Serial.println("7 - Erro");
+    digitalWrite(ledEnchendo, LOW);
+    digitalWrite(ledEsvaziando, LOW);
+    myData.a = 0;
+  }
+ 
+  // Envia mensagem via ESP-NOW
   esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
    
   if (result == ESP_OK) {
-    Serial.println("Sent with success");
-  }
-  else {
-    Serial.println("Error sending the data");
+    Serial.println("Enviada com sucesso");
+  } else {
+    Serial.println("Erro ao enviar os dados");
+    if (!isPeerConnected) {
+      addPeer(); // Tenta adicionar o peer novamente
+    }
   }
   delay(1000);
+
+  // Tenta reconectar se o peer não estiver conectado
+  if (!isPeerConnected) {
+    addPeer();
+  }
+}
+
+void piscaLedConexao(bool statusLed){
+  if(statusLed){
+    digitalWrite(ledConexao, HIGH);
+  } else {
+    for(int i = 0; i < 3; i++) {
+      digitalWrite(ledConexao, HIGH);
+      delay(500);
+      digitalWrite(ledConexao, LOW);
+      delay(500);
+    }
+  }
 }
