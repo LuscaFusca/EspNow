@@ -21,10 +21,10 @@ void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *incomingData, in
   lastReceiveTime = millis(); // Atualiza a última vez que recebemos dados
 
   if(!myData.a){
-    digitalWrite(pinBomba, HIGH);
+    digitalWrite(pinBomba, LOW);
     Serial.println("Bomba Desligada");
   }else{
-    digitalWrite(pinBomba, LOW);
+    digitalWrite(pinBomba, HIGH);
     Serial.println("Bomba Ligada");
   }
   Serial.print("Status Bomba: ");
@@ -37,7 +37,7 @@ void setup() {
   pinMode(pinBomba, OUTPUT);
   // Configura o dispositivo como uma estação Wi-Fi
   WiFi.mode(WIFI_STA);
-  digitalWrite(pinBomba, HIGH);
+  digitalWrite(pinBomba, LOW);
   // Inicializa ESP-NOW
   if (esp_now_init() != ESP_OK) {
     Serial.println("Erro ao inicializar ESP-NOW");
@@ -53,7 +53,7 @@ void loop() {
   // Verifica se o tempo desde a última recepção de dados excede o tempo limite
   if (millis() - lastReceiveTime > timeout) {
     // Conexão perdida, desligar a bomba
-    digitalWrite(pinBomba, HIGH);
+    digitalWrite(pinBomba, LOW);
     Serial.println("Conexão perdida, bomba desligada");
   }
   delay(1000); // Ajuste conforme necessário

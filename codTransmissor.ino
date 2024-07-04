@@ -2,13 +2,13 @@
 #include <WiFi.h>
 
 // Substitua pelo endereço MAC do receptor
-uint8_t broadcastAddress[] = {0x08, 0xd1, 0xf9, 0x27, 0x9e, 0x84};
+uint8_t broadcastAddress[] = {0x08, 0xd1, 0xf9, 0x27, 0xda, 0xf0};
 
 #define sensorDeCima 22 // Pino do sensor de cima
 #define sensorDeBaixo 23 // Pino do sensor de baixo
-#define ledConexao 12
-#define ledEnchendo 13
-#define ledEsvaziando 14
+#define ledConexao 18
+#define ledEnchendo 19
+#define ledEsvaziando 21
 
 bool statusCaixa = false;
 bool sDeCima;
